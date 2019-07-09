@@ -29,8 +29,17 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 
 import io.realm.Realm;
-import io.realm.RealmObject;
-import io.realm.RealmResults;
+
+import java.io.File;
+
+import java.util.List;
+import android.hardware.Camera;
+import android.hardware.Camera.Size;
+import android.media.MediaRecorder;
+import android.view.SurfaceHolder;
+import android.view.SurfaceView;
+import android.view.ViewGroup.LayoutParams;
+
 
 public class MainActivity extends AppCompatActivity implements LocationListener{
 
@@ -51,6 +60,14 @@ public class MainActivity extends AppCompatActivity implements LocationListener{
     Double dKoudo2 = 0.0;
     Double difdistance=0.0;
     int start=0;
+
+    private Camera myCamera;
+    private SurfaceView mySurfaceView;
+    private boolean isRecording;
+    private SurfaceHolder v_holder;
+    private MediaRecorder mediaRecorder;
+    private String filePath;
+
 
     @SuppressLint("WrongViewCast")
     @Override
@@ -98,20 +115,156 @@ public class MainActivity extends AppCompatActivity implements LocationListener{
 
         mRealm = Realm.getDefaultInstance();
 
-        mListView = (ListView)findViewById(R.id.listView);
+      /*  mListView = (ListView)findViewById(R.id.listView);
         RealmResults<LocationApp> locationApps = mRealm.where(LocationApp.class).findAll();
         LocationAdapter adapter = new LocationAdapter(locationApps);
         mListView.setAdapter(adapter);
+*/
+        mySurfaceView = (SurfaceView) findViewById(R.id.surfaceView);
+        SurfaceHolder holder = mySurfaceView.getHolder();
+        holder.addCallback(mSurfaceListener);
+        //holder.setType(SurfaceHolder.SURFACE_TYPE_PUSH_BUFFERS);
+        myCamera = getCameraInstance();
+    }
 
+    private SurfaceHolder.Callback mSurfaceListener = new SurfaceHolder.Callback() {
+
+        public void surfaceCreated(SurfaceHolder holder) {
+            // TODO Auto-generated method stub
+
+            try {
+                myCamera.setPreviewDisplay(holder);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
+
+        public void surfaceDestroyed(SurfaceHolder holder) {
+            // TODO Auto-generated method stub
+            //myCamera.release();
+            //myCamera = null;
+
+            myCamera.setPreviewCallback(null);
+            myCamera.stopPreview();
+            myCamera.release();
+            myCamera = null;
+        }
+
+        public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+            // TODO Auto-generated method stub
+            v_holder = holder; // SurfaceHolderを保存
+
+            //myCamera.stopPreview();
+            Camera.Parameters parameters = myCamera.getParameters();
+
+            List<Size> asizeSupport = parameters.getSupportedPreviewSizes();
+            //一番小さいプレビューサイズを利用
+            Size size = asizeSupport.get(asizeSupport.size() - 1);
+            parameters.setPreviewSize(1920,1080);
+            Log.d("size1", "w=" + String.valueOf(width) + "h=" + String.valueOf(height));//
+            Log.d("size2", "w=" + String.valueOf(size.width) + "h=" + String.valueOf(size.height));//
+
+            LayoutParams paramLayout;
+            paramLayout = mySurfaceView.getLayoutParams();
+            paramLayout.width = 1920;
+            paramLayout.height = 1080;
+            mySurfaceView.setLayoutParams(paramLayout);
+            myCamera.setDisplayOrientation(180);// カメラを回転
+
+            //List<Camera.Size> size = parameters.getSupportedPreviewSizes();
+
+            //Log.d("カメラのサイズ", "w=" + String.valueOf(size.get(0).width) + "h=" + String.valueOf(size.get(0).height));//
+            //parameters.setPreviewSize(size.get(0).width, size.get(0).height);
+            // myCamera.setParameters(parameters);
+            myCamera.startPreview();//
+        }
+    };
+
+    public void click(View v) {
+        // 録画中でなければ録画を開始
+        if (!isRecording) {
+
+            start = 1;
+
+            initializeVideoSettings();// MediaRecorderの設定
+            //  mediaRecorder.start(); // 録画開始
+            isRecording = true; // 録画中のフラグを立てる
+
+            // 録画中であれば録画を停止
+        } else {
+            start = 0;
+            mediaRecorder.stop(); // 録画停止
+            mediaRecorder.reset(); // 無いとmediarecorder went away with unhandled
+            // events　が発生
+            mediaRecorder.release();//
+            mediaRecorder = null;
+            //myCamera.lock();
+            //myCamera.release(); // release the camera for other applications
+            //myCamera = null;
+            isRecording = false; // 録画中のフラグを外す
+
+            try{
+                FileOutputStream fileOutputStream = openFileOutput("test"+".csv", MODE_PRIVATE);
+                // String writeString = dIdo + "\n";
+                fileOutputStream.write(csv.getBytes());
+            }
+            catch (IOException e) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+
+
+    private void initializeVideoSettings() {
+        // TODO 自動生成されたメソッド・スタブ
+        try {
+
+            //myCamera = getCameraInstance();
+            mediaRecorder = new MediaRecorder();
+            //mediaRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA);
+            //mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+
+            myCamera.unlock();
+            mediaRecorder.setCamera( myCamera );
+            mediaRecorder.setVideoSource(MediaRecorder.VideoSource.CAMERA); // 録画の入力ソースを指定
+//            mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+            mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.THREE_GPP); // ファイルフォーマットを指定
+            mediaRecorder.setVideoEncoder(MediaRecorder.VideoEncoder.MPEG_4_SP); // ビデオエンコーダを指定
+//            mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.DEFAULT);
+
+            //CamcorderProfile profile = CamcorderProfile.get(CamcorderProfile.QUALITY_HIGH);
+            //mediaRecorder.setProfile(profile);
+
+            mediaRecorder.setVideoFrameRate(30); // 動画のフレームレートを指定
+            mediaRecorder.setVideoSize(1920, 1080); // 動画のサイズを指定
+            File folder = new File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DCIM),"Camera");
+            File file = File.createTempFile("sample", ".mp4", folder);//
+            mediaRecorder.setOutputFile(file.getAbsolutePath());
+            mediaRecorder.setPreviewDisplay(v_holder.getSurface());
+            mediaRecorder.setOrientationHint(180);
+            mediaRecorder.prepare();
+            mediaRecorder.start();
+        } catch (IOException e) {
+            // TODO 自動生成された catch ブロック
+            e.printStackTrace();
+        }
+    }
+
+    private Camera getCameraInstance() {
+        // TODO 自動生成されたメソッド・スタブ
+        Camera c = null;
+        try {
+            myCamera = Camera.open( 0 ); // attempt to get a Camera instance
+        }
+        catch (Exception e){
+            // Camera is not available (in use or does not exist)
+        }
+        return myCamera; // returns null if camera is unavailable
+    }
 
 
 /*
-        mDateEdit = (EditText)findViewById(R.id.dateEdit);
-        mIdoEdit = (EditText)findViewById(R.id.titleEdit);
-        mKeidoEdit = (EditText)findViewById(R.id.detailEdit);
-*/
-    }
-
     public void onBsave(View view)
     {
         try{
@@ -124,21 +277,19 @@ public class MainActivity extends AppCompatActivity implements LocationListener{
         }
 
     }
-
-    public void onBstart(View view)
-    {
+*/
+ /*   public void onBstart(View view) {
         start = 1;
-        TextView textView = findViewById(R.id.statas);
-        textView.setText("計測中");
+        //TextView textView = findViewById(R.id.statas);
+        //textView.setText("計測中");
     }
 
-    public void onBstop(View view)
-    {
+    public void onBstop(View view) {
         start = 0;
-        TextView textView = findViewById(R.id.statas);
-        textView.setText("計測してません");
+        //TextView textView = findViewById(R.id.statas);
+        //textView.setText("計測してません");
     }
-
+*/
     @Override
     public void onLocationChanged(Location location) {
 

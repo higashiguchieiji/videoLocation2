@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">LocApp</string>
+    <string name="app_name">LocApp2</string>
     <string name="textView1">緯度</string>
     <string name="textView2">経度</string>
     <string name="textView3">高度</string>
